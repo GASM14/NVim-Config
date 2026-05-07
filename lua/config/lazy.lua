@@ -18,7 +18,9 @@ require("lazy").setup({
 
   rocks = {
     enabled = true,
-    hererocks = false,
+    hererocks = {
+      lua = "lua5.1",
+    },
   },
 
   spec = {

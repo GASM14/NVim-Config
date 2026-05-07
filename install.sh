@@ -6,11 +6,11 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   if command -v apt &>/dev/null; then
     PKG_MANAGER="apt"
     INSTALL_CMD="sudo apt update && sudo apt install -y"
-    NEORGS_DEPENDS="lua5.1 luarocks g++ imagemagick npm git curl"
+    OS_DEPENDS="lua5.1 luarocks g++ imagemagick npm git curl"
   elif command -v dnf &>/dev/null; then
     PKG_MANAGER="dnf"
     INSTALL_CMD="sudo dnf install -y"
-    NEORGS_DEPENDS="lua5.1 luarocks gcc-c++ ImageMagick nodejs npm git curl"
+    OS_DEPENDS="lua5.1 luarocks gcc-c++ ImageMagick nodejs npm git curl"
   else
     echo "Unsupported Linux distribution."
     exit 1
@@ -18,31 +18,43 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 elif [[ "$OSTYPE" == "darwin"* ]]; then
   PKG_MANAGER="brew"
   INSTALL_CMD="brew install"
-  NEORGS_DEPENDS="lua@5.1 luarocks gcc imagemagick node npm git curl"
-  # Ensure Homebrew is installed
-  if ! command -v brew &>/dev/null; then
-    echo "Homebrew not found. Please install it first: https://brew.sh"
-    exit 1
-  fi
+  # Homebrew already handles luarocks, imagemagick, node, npm, git, curl, gcc
+  OS_DEPENDS="luarocks imagemagick node npm git curl"
+  # neovim is also installed via homebrew later
 else
   echo "Unsupported OS."
   exit 1
 fi
 
-# ----- Install system dependencies (Neovim + tools) -----
+# ----- Install system dependencies (Neovim + core tools) -----
 echo "Installing system packages..."
 if [[ "$PKG_MANAGER" == "apt" ]]; then
   sudo apt update
-  sudo apt install -y neovim $NEORGS_DEPENDS
+  sudo apt install -y neovim $OS_DEPENDS
 elif [[ "$PKG_MANAGER" == "dnf" ]]; then
-  sudo dnf install -y neovim $NEORGS_DEPENDS
+  sudo dnf install -y neovim $OS_DEPENDS
 elif [[ "$PKG_MANAGER" == "brew" ]]; then
-  brew install neovim $NEORGS_DEPENDS
+  brew install neovim $OS_DEPENDS
+
+  # Compile and install Lua 5.1 from source (needed for Neorg/Luarocks)
+  echo "Installing Lua 5.1 from source (required by Neorg)..."
+  cd /tmp
+  curl -LO https://www.lua.org/ftp/lua-5.1.5.tar.gz
+  tar -xzf lua-5.1.5.tar.gz
+  cd lua-5.1.5
+  make macosx test
+  sudo make install
+  cd ~ && rm -rf /tmp/lua-5.1.5*
 fi
 
 # ----- Install tree‑sitter CLI (npm) -----
 echo "Installing tree‑sitter CLI..."
-sudo npm install -g tree-sitter-cli
+if [[ "$PKG_MANAGER" == "brew" ]]; then
+  # npm is user‑owned on Homebrew; installing globally with sudo can break permissions
+  npm install -g tree-sitter-cli
+else
+  sudo npm install -g tree-sitter-cli
+fi
 
 # ----- Clone your Neovim config (if not already present) -----
 if [ ! -d "$HOME/.config/nvim" ]; then
@@ -58,16 +70,24 @@ echo "Building norg treesitter parsers..."
 mkdir -p /tmp/parsers
 cd /tmp/parsers
 
+# Compile norg (has external scanner)
 git clone https://github.com/nvim-neorg/tree-sitter-norg.git
 cd tree-sitter-norg
-tree-sitter generate && tree-sitter build
+tree-sitter generate
+# Manually compile scanner and parser, then link
+g++ -c -I./src ./src/scanner.cc -o scanner.o
+gcc -c -I./src ./src/parser.c -o parser.o
+g++ -shared -o tree-sitter-norg.so parser.o scanner.o
 mkdir -p ~/.local/share/nvim/site/parser
 cp tree-sitter-norg.so ~/.local/share/nvim/site/parser/norg.so
+cd ..
 
-cd /tmp/parsers
+# Compile norg_meta (no scanner, simpler)
 git clone https://github.com/nvim-neorg/tree-sitter-norg-meta.git
 cd tree-sitter-norg-meta
-tree-sitter generate && tree-sitter build
+tree-sitter generate
+gcc -c -I./src ./src/parser.c -o parser.o
+gcc -shared -o tree-sitter-norg-meta.so parser.o
 cp tree-sitter-norg-meta.so ~/.local/share/nvim/site/parser/norg_meta.so
 
 cd ~ && rm -rf /tmp/parsers
