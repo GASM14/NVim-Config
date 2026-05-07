@@ -1,4 +1,4 @@
-echo 'return {
+return {
   {
     "MeanderingProgrammer/render-markdown.nvim",
     opts = {
@@ -10,4 +10,4 @@ echo 'return {
     },
     ft = { "markdown" },
   },
-}' > ~/.config/nvim/lua/plugins/render-markdown.lua
+}

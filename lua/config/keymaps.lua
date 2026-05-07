@@ -8,14 +8,18 @@ vim.keymap.set("n", "<leader>ph", function()
 
   if session == "wayland" then
     cmd =
-      [[bash -c 'HTML=$(wl-paste -t text/html 2>/dev/null); if [ -n "$HTML" ]; then echo "$HTML" | pandoc -f html -t markdown_strict --wrap=none; else wl-paste -t text/plain | pandoc -f plain -t markdown_strict --wrap=none; fi']]
-  elseif session == "x11" then
-    cmd =
-      [[bash -c 'HTML=$(xclip -o -selection clipboard -t text/html 2>/dev/null); if [ -n "$HTML" ]; then echo "$HTML" | pandoc -f html -t markdown_strict --wrap=none; else xclip -o -selection clipboard -t text/plain | pandoc -f plain -t markdown_strict --wrap=none; fi']]
+      [[bash -c 'HTML=$(wl-paste -t text/html 2>/dev/null); if [ -n "$HTML" ]; then echo "$HTML" | sed -E "s/ (style|class|id)=\"[^\"]*\"//g; s/<span[^>]*>//g; s/<\/span>//g; s/<div[^>]*>/<div>/g; s/<p[^>]*>/<p>/g" | pandoc -f html -t gfm --wrap=none; else wl-paste -t text/plain | pandoc -f plain -t gfm --wrap=none; fi']]
   else
-    -- macOS or other (assumes pbpaste for plain text; HTML is not easily accessible via CLI)
-    cmd = [[bash -c 'pbpaste | pandoc -f plain -t markdown_strict --wrap=none']]
+    cmd =
+      [[bash -c 'HTML=$(xclip -o -selection clipboard -t text/html 2>/dev/null); if [ -n "$HTML" ]; then echo "$HTML" | sed -E "s/ (style|class|id)=\"[^\"]*\"//g; s/<span[^>]*>//g; s/<\/span>//g; s/<div[^>]*>/<div>/g; s/<p[^>]*>/<p>/g" | pandoc -f html -t gfm --wrap=none; else xclip -o -selection clipboard -t text/plain | pandoc -f plain -t gfm --wrap=none; fi']]
   end
 
   vim.fn.execute("read !" .. cmd)
-end, { desc = "Paste HTML/Plain as clean Markdown" })
+end, { desc = "Paste HTML/Plain as clean GFM Markdown" })
+
+-- Atalhos para transformar a linha atual em cabeçalho Markdown
+vim.keymap.set("n", "<leader>h1", "I# <Esc>", { desc = "Make current line H1" })
+vim.keymap.set("n", "<leader>h2", "I## <Esc>", { desc = "Make current line H2" })
+vim.keymap.set("n", "<leader>h3", "I### <Esc>", { desc = "Make current line H3" })
+vim.keymap.set("n", "<leader>h4", "I#### <Esc>", { desc = "Make current line H4" })
+vim.keymap.set("n", "<leader>h5", "I##### <Esc>", { desc = "Make current line H5" })
